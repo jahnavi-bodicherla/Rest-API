@@ -1,0 +1,1484 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>DataLens — Smart Show Explorer</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+/* ─────────────────── TOKENS ─────────────────── */
+:root {
+  --bg: #0a0a0f;
+  --surface: #111118;
+  --surface2: #1a1a24;
+  --surface3: #22222f;
+  --border: rgba(255,255,255,0.07);
+  --accent: #e8ff47;
+  --accent2: #ff4757;
+  --text: #f0f0f8;
+  --text-muted: #6b6b80;
+  --text-dim: #3a3a50;
+  --shadow: 0 24px 64px rgba(0,0,0,0.6);
+  --radius: 12px;
+  --font-display: 'Bebas Neue', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+  --font-mono: 'DM Mono', monospace;
+  --transition: 0.25s cubic-bezier(0.4,0,0.2,1);
+}
+[data-theme="light"] {
+  --bg: #f4f4f0;
+  --surface: #ffffff;
+  --surface2: #ededea;
+  --surface3: #e0e0dc;
+  --border: rgba(0,0,0,0.08);
+  --text: #0a0a0f;
+  --text-muted: #70707a;
+  --text-dim: #b0b0ba;
+  --shadow: 0 24px 64px rgba(0,0,0,0.12);
+}
+
+/* ─────────────────── RESET ─────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font-body);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  transition: background var(--transition), color var(--transition);
+}
+
+/* ─────────────────── NOISE OVERLAY ─────────────────── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.4;
+}
+
+/* ─────────────────── LAYOUT ─────────────────── */
+.app { position: relative; z-index: 1; }
+
+/* ─────────────────── HEADER ─────────────────── */
+header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: rgba(10,10,15,0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 clamp(1rem, 4vw, 3rem);
+}
+[data-theme="light"] header { background: rgba(244,244,240,0.9); }
+
+.header-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  height: 64px;
+}
+.logo {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  text-decoration: none;
+  flex-shrink: 0;
+}
+.logo-text {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  letter-spacing: 0.02em;
+  color: var(--text);
+  line-height: 1;
+}
+.logo-badge {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 500;
+  background: var(--accent);
+  color: #0a0a0f;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+/* Search */
+.search-wrap {
+  flex: 1;
+  max-width: 480px;
+  position: relative;
+}
+.search-icon {
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  pointer-events: none;
+  width: 16px;
+  height: 16px;
+}
+#searchInput {
+  width: 100%;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px 10px 40px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.875rem;
+  outline: none;
+  transition: border-color var(--transition), box-shadow var(--transition);
+}
+#searchInput::placeholder { color: var(--text-muted); }
+#searchInput:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(232,255,71,0.12);
+}
+
+/* Header actions */
+.header-actions { display: flex; gap: 0.5rem; margin-left: auto; align-items: center; }
+
+.stat-chip {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  padding: 4px 10px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.stat-chip span { color: var(--accent); font-weight: 500; }
+
+.icon-btn {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--transition);
+  flex-shrink: 0;
+}
+.icon-btn:hover { background: var(--surface3); color: var(--text); border-color: var(--accent); }
+.icon-btn.active { background: var(--accent); color: #0a0a0f; border-color: var(--accent); }
+
+/* ─────────────────── HERO STRIP ─────────────────── */
+.hero-strip {
+  background: linear-gradient(135deg, var(--surface) 0%, var(--surface2) 100%);
+  border-bottom: 1px solid var(--border);
+  padding: 2.5rem clamp(1rem, 4vw, 3rem);
+  overflow: hidden;
+  position: relative;
+}
+.hero-strip::after {
+  content: 'EXPLORE';
+  font-family: var(--font-display);
+  font-size: clamp(5rem, 14vw, 12rem);
+  position: absolute;
+  right: -1rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--border);
+  letter-spacing: -0.02em;
+  pointer-events: none;
+  line-height: 1;
+  user-select: none;
+}
+.hero-inner { max-width: 1400px; margin: 0 auto; }
+.hero-title {
+  font-family: var(--font-display);
+  font-size: clamp(2.5rem, 6vw, 5rem);
+  letter-spacing: 0.02em;
+  line-height: 0.95;
+  color: var(--text);
+}
+.hero-title em { color: var(--accent); font-style: normal; }
+.hero-sub {
+  margin-top: 0.75rem;
+  font-size: 0.875rem;
+  color: var(--text-muted);
+  max-width: 500px;
+  line-height: 1.6;
+}
+
+/* ─────────────────── CONTROLS ─────────────────── */
+.controls-bar {
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  padding: 0.875rem clamp(1rem, 4vw, 3rem);
+  position: sticky;
+  top: 64px;
+  z-index: 90;
+}
+.controls-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.select-wrap { position: relative; }
+.select-wrap::after {
+  content: '▾';
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}
+select {
+  appearance: none;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 30px 8px 12px;
+  color: var(--text);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--transition);
+}
+select:focus { border-color: var(--accent); }
+
+.filter-label {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  padding-right: 0.25rem;
+}
+
+.view-toggle {
+  margin-left: auto;
+  display: flex;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.view-btn {
+  padding: 7px 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  transition: all var(--transition);
+}
+.view-btn.active { background: var(--accent); color: #0a0a0f; }
+.view-btn:not(.active):hover { background: var(--surface3); color: var(--text); }
+
+/* Active filters chips */
+.filter-chips { display: flex; gap: 0.4rem; flex-wrap: wrap; align-items: center; }
+.chip {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  padding: 3px 8px 3px 10px;
+  background: rgba(232,255,71,0.1);
+  border: 1px solid rgba(232,255,71,0.3);
+  color: var(--accent);
+  border-radius: 20px;
+  display: flex; align-items: center; gap: 4px;
+  cursor: pointer;
+  transition: all var(--transition);
+}
+.chip:hover { background: rgba(232,255,71,0.2); }
+.chip-x { font-size: 0.8rem; line-height: 1; opacity: 0.7; }
+
+/* Fav filter */
+.fav-toggle {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  padding: 7px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex; align-items: center; gap: 6px;
+  transition: all var(--transition);
+}
+.fav-toggle:hover { border-color: var(--accent2); color: var(--accent2); }
+.fav-toggle.active { background: rgba(255,71,87,0.15); border-color: var(--accent2); color: var(--accent2); }
+
+/* ─────────────────── MAIN CONTENT ─────────────────── */
+main {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 2rem clamp(1rem, 4vw, 3rem) 4rem;
+}
+
+/* ─────────────────── SKELETON ─────────────────── */
+@keyframes shimmer {
+  0% { background-position: -600px 0; }
+  100% { background-position: 600px 0; }
+}
+.skeleton-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.5rem;
+}
+.skeleton-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.skel {
+  background: linear-gradient(90deg, var(--surface2) 25%, var(--surface3) 50%, var(--surface2) 75%);
+  background-size: 600px 100%;
+  animation: shimmer 1.4s infinite linear;
+}
+.skel-img { height: 180px; }
+.skel-content { padding: 1rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.skel-line { height: 12px; border-radius: 4px; }
+.skel-line.w-80 { width: 80%; }
+.skel-line.w-60 { width: 60%; }
+.skel-line.w-40 { width: 40%; }
+
+/* ─────────────────── CARDS GRID ─────────────────── */
+#cardsGrid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+}
+#cardsGrid.list-view {
+  grid-template-columns: 1fr;
+}
+
+/* ─────────────────── CARD ─────────────────── */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  cursor: pointer;
+  position: relative;
+  transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+  animation: cardIn 0.4s cubic-bezier(0.4,0,0.2,1) both;
+}
+@keyframes cardIn {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow);
+  border-color: rgba(232,255,71,0.25);
+}
+.card.list-view {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+}
+
+.card-img-wrap {
+  position: relative;
+  overflow: hidden;
+  background: var(--surface2);
+}
+.card-img-wrap img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.5s ease;
+}
+.card:hover .card-img-wrap img { transform: scale(1.06); }
+.card.list-view .card-img-wrap img { height: 100%; min-height: 130px; }
+
+.card-no-img {
+  height: 200px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--surface2), var(--surface3));
+  font-family: var(--font-display);
+  font-size: 3rem;
+  color: var(--text-dim);
+  letter-spacing: 0.05em;
+}
+.card.list-view .card-no-img { height: 100%; min-height: 130px; font-size: 2rem; }
+
+.card-rating-badge {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  background: rgba(0,0,0,0.75);
+  backdrop-filter: blur(8px);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 500;
+  color: var(--accent);
+  display: flex; align-items: center; gap: 3px;
+}
+.card-genre-tag {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  right: 10px;
+  display: flex; gap: 4px; flex-wrap: wrap;
+}
+.genre-pill {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  padding: 2px 7px;
+  background: rgba(10,10,15,0.8);
+  border-radius: 20px;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(4px);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.fav-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 32px; height: 32px;
+  border-radius: 8px;
+  background: rgba(0,0,0,0.6);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all var(--transition);
+  z-index: 5;
+  font-size: 0.85rem;
+}
+.fav-btn:hover, .fav-btn.active { color: var(--accent2); border-color: var(--accent2); background: rgba(255,71,87,0.2); }
+.fav-btn.active { color: var(--accent2); }
+
+.card-body { padding: 1rem 1.25rem 1.25rem; display: flex; flex-direction: column; gap: 0.5rem; }
+
+.card-network {
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.card-title {
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.card-meta {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+.meta-item {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  display: flex; align-items: center; gap: 3px;
+}
+.card-summary {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.55;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: auto;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+}
+.status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.status-dot.running { background: #4ade80; box-shadow: 0 0 6px #4ade80; }
+.status-dot.ended { background: var(--text-dim); }
+.status-dot.other { background: var(--accent); }
+.status-text { font-family: var(--font-mono); font-size: 0.65rem; color: var(--text-muted); display: flex; align-items: center; gap: 5px; }
+
+.view-more-btn {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  padding: 5px 12px;
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all var(--transition);
+  letter-spacing: 0.04em;
+}
+.view-more-btn:hover { background: var(--accent); color: #0a0a0f; border-color: var(--accent); }
+
+/* ─────────────────── EMPTY / ERROR ─────────────────── */
+.empty-state, .error-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 5rem 2rem;
+  display: flex; flex-direction: column; align-items: center; gap: 1rem;
+}
+.empty-icon {
+  font-size: 3rem;
+  opacity: 0.3;
+}
+.empty-title {
+  font-family: var(--font-display);
+  font-size: 2rem;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+.empty-sub { font-size: 0.875rem; color: var(--text-dim); max-width: 320px; }
+.retry-btn {
+  margin-top: 0.5rem;
+  padding: 10px 24px;
+  background: var(--accent);
+  color: #0a0a0f;
+  border: none;
+  border-radius: 8px;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all var(--transition);
+  letter-spacing: 0.05em;
+}
+.retry-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(232,255,71,0.3); }
+
+/* ─────────────────── PAGINATION ─────────────────── */
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 3rem;
+  flex-wrap: wrap;
+}
+.page-btn {
+  min-width: 40px; height: 40px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--transition);
+  padding: 0 8px;
+}
+.page-btn:hover { background: var(--surface2); color: var(--text); }
+.page-btn.active { background: var(--accent); color: #0a0a0f; border-color: var(--accent); font-weight: 600; }
+.page-btn:disabled { opacity: 0.3; cursor: not-allowed; pointer-events: none; }
+.page-ellipsis { color: var(--text-dim); font-family: var(--font-mono); font-size: 0.8rem; }
+
+/* ─────────────────── MODAL ─────────────────── */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.8);
+  backdrop-filter: blur(12px);
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+.modal-backdrop.open {
+  opacity: 1;
+  pointer-events: all;
+}
+.modal {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  width: 100%;
+  max-width: 780px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  transform: scale(0.94) translateY(16px);
+  transition: transform 0.3s cubic-bezier(0.4,0,0.2,1);
+  scrollbar-width: thin;
+  scrollbar-color: var(--surface3) transparent;
+}
+.modal-backdrop.open .modal { transform: scale(1) translateY(0); }
+
+.modal-hero {
+  position: relative;
+  height: 300px;
+  background: var(--surface2);
+  overflow: hidden;
+}
+.modal-hero img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.modal-hero-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, var(--surface) 0%, transparent 60%);
+}
+.modal-hero-no-img {
+  height: 300px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--surface2), var(--surface3));
+  font-family: var(--font-display);
+  font-size: 5rem;
+  color: var(--text-dim);
+}
+
+.modal-close {
+  position: absolute;
+  top: 1rem; right: 1rem;
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  background: rgba(10,10,15,0.8);
+  backdrop-filter: blur(8px);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all var(--transition);
+  font-size: 1.1rem;
+  z-index: 10;
+}
+.modal-close:hover { background: var(--accent); color: #0a0a0f; border-color: var(--accent); }
+
+.modal-body { padding: 1.5rem 2rem 2rem; }
+.modal-network {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 0.5rem;
+}
+.modal-title {
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 5vw, 3rem);
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: var(--text);
+  margin-bottom: 1rem;
+}
+.modal-tags { display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.25rem; }
+.modal-tag {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  padding: 4px 10px;
+  border-radius: 20px;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  background: var(--surface2);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.modal-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.75rem;
+  margin-bottom: 1.5rem;
+}
+.stat-card {
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem 1rem;
+}
+.stat-card-label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 0.25rem;
+}
+.stat-card-value {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+.stat-card-value.accent { color: var(--accent); }
+
+.modal-desc {
+  font-size: 0.9rem;
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+.modal-desc a { color: var(--accent); text-decoration: none; }
+
+.modal-footer {
+  display: flex; gap: 0.75rem; margin-top: 1.5rem; flex-wrap: wrap;
+}
+.modal-fav-btn {
+  flex: 1;
+  min-width: 120px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface2);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all var(--transition);
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.modal-fav-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+.modal-fav-btn.active { background: rgba(255,71,87,0.15); border-color: var(--accent2); color: var(--accent2); }
+
+.modal-ext-btn {
+  flex: 1;
+  min-width: 120px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  border: none;
+  background: var(--accent);
+  color: #0a0a0f;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all var(--transition);
+  text-decoration: none;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.modal-ext-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(232,255,71,0.3); }
+
+/* ─────────────────── TOAST ─────────────────── */
+#toastContainer {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 300;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+.toast {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.75rem 1.25rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--text);
+  display: flex; align-items: center; gap: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+  animation: toastIn 0.3s cubic-bezier(0.4,0,0.2,1) both;
+  pointer-events: all;
+  max-width: 320px;
+  backdrop-filter: blur(20px);
+}
+.toast.fav { border-color: rgba(255,71,87,0.4); }
+.toast.success { border-color: rgba(74,222,128,0.4); }
+@keyframes toastIn {
+  from { opacity: 0; transform: translateX(16px) scale(0.95); }
+  to { opacity: 1; transform: translateX(0) scale(1); }
+}
+@keyframes toastOut {
+  to { opacity: 0; transform: translateX(16px) scale(0.95); }
+}
+
+/* ─────────────────── FOOTER ─────────────────── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 1.5rem clamp(1rem, 4vw, 3rem);
+  background: var(--surface);
+}
+.footer-inner {
+  max-width: 1400px;
+  margin: 0 auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+.footer-text {
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-dim);
+}
+.footer-text a { color: var(--text-muted); text-decoration: none; }
+.footer-text a:hover { color: var(--accent); }
+
+/* ─────────────────── SCROLLBAR ─────────────────── */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--surface3); border-radius: 3px; }
+
+/* ─────────────────── RESPONSIVE ─────────────────── */
+@media (max-width: 768px) {
+  .hero-strip::after { display: none; }
+  .search-wrap { max-width: none; flex: 1; min-width: 0; }
+  .stat-chip { display: none; }
+  .header-inner { gap: 0.75rem; }
+  #cardsGrid { grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+  .modal-body { padding: 1.25rem; }
+}
+@media (max-width: 480px) {
+  #cardsGrid { grid-template-columns: 1fr; }
+  .skeleton-grid { grid-template-columns: 1fr; }
+  .controls-inner { gap: 0.5rem; }
+  .view-toggle { display: none; }
+}
+
+/* ─────────────────── STAGGER ANIMATION DELAYS ─────────────────── */
+.card:nth-child(1)  { animation-delay: 0.00s; }
+.card:nth-child(2)  { animation-delay: 0.04s; }
+.card:nth-child(3)  { animation-delay: 0.08s; }
+.card:nth-child(4)  { animation-delay: 0.12s; }
+.card:nth-child(5)  { animation-delay: 0.16s; }
+.card:nth-child(6)  { animation-delay: 0.20s; }
+.card:nth-child(7)  { animation-delay: 0.24s; }
+.card:nth-child(8)  { animation-delay: 0.28s; }
+.card:nth-child(9)  { animation-delay: 0.32s; }
+.card:nth-child(10) { animation-delay: 0.36s; }
+.card:nth-child(11) { animation-delay: 0.40s; }
+.card:nth-child(12) { animation-delay: 0.44s; }
+</style>
+</head>
+<body>
+<div class="app">
+
+<!-- ── HEADER ── -->
+<header>
+  <div class="header-inner">
+    <a href="#" class="logo" onclick="return false;">
+      <span class="logo-text">DataLens</span>
+      <span class="logo-badge">Beta</span>
+    </a>
+
+    <div class="search-wrap">
+      <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+      </svg>
+      <input type="text" id="searchInput" placeholder="Search shows, genres, networks…" autocomplete="off"/>
+    </div>
+
+    <div class="header-actions">
+      <div class="stat-chip" id="totalChip">Loading…</div>
+      <button class="icon-btn" id="themeToggleBtn" title="Toggle theme" onclick="toggleTheme()">
+        <svg width="15" height="15" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" d="M12 3v1m0 16v1M4.22 4.22l.7.7m12.16 12.16.7.7M3 12H2m20 0h-1M4.22 19.78l.7-.7M18.36 5.64l.7-.7"/>
+          <circle cx="12" cy="12" r="4"/>
+        </svg>
+      </button>
+      <button class="icon-btn" id="favHeaderBtn" title="Show favorites" onclick="toggleFavsOnly()">
+        <svg width="15" height="15" fill="currentColor" viewBox="0 0 24 24">
+          <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<!-- ── HERO ── -->
+<section class="hero-strip">
+  <div class="hero-inner">
+    <h1 class="hero-title">Discover <em>Every</em><br/>Great Show</h1>
+    <p class="hero-sub">Real-time data from TVMaze — search, filter, sort, and bookmark your favourite series.</p>
+  </div>
+</section>
+
+<!-- ── CONTROLS ── -->
+<div class="controls-bar">
+  <div class="controls-inner">
+    <span class="filter-label">Genre</span>
+    <div class="select-wrap">
+      <select id="genreFilter" onchange="applyFilters()">
+        <option value="">All</option>
+      </select>
+    </div>
+
+    <span class="filter-label">Network</span>
+    <div class="select-wrap">
+      <select id="networkFilter" onchange="applyFilters()">
+        <option value="">All</option>
+      </select>
+    </div>
+
+    <span class="filter-label">Sort</span>
+    <div class="select-wrap">
+      <select id="sortSelect" onchange="applyFilters()">
+        <option value="default">Default</option>
+        <option value="az">A → Z</option>
+        <option value="za">Z → A</option>
+        <option value="rating-desc">⭑ Highest Rated</option>
+        <option value="rating-asc">⭑ Lowest Rated</option>
+        <option value="year-desc">Newest</option>
+        <option value="year-asc">Oldest</option>
+      </select>
+    </div>
+
+    <button class="fav-toggle" id="favToggleBtn" onclick="toggleFavsOnly()">
+      ♥ Favorites <span id="favCount" style="display:none;background:var(--accent2);color:#fff;border-radius:10px;padding:1px 6px;font-size:0.65rem;margin-left:2px"></span>
+    </button>
+
+    <div id="activeChips" class="filter-chips"></div>
+
+    <div class="view-toggle">
+      <button class="view-btn active" id="gridBtn" onclick="setView('grid')" title="Grid view">
+        <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+          <rect x="0" y="0" width="7" height="7" rx="1"/><rect x="9" y="0" width="7" height="7" rx="1"/>
+          <rect x="0" y="9" width="7" height="7" rx="1"/><rect x="9" y="9" width="7" height="7" rx="1"/>
+        </svg>
+      </button>
+      <button class="view-btn" id="listBtn" onclick="setView('list')" title="List view">
+        <svg width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
+          <rect x="0" y="0" width="16" height="3" rx="1"/>
+          <rect x="0" y="6" width="16" height="3" rx="1"/>
+          <rect x="0" y="12" width="16" height="3" rx="1"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ── MAIN ── -->
+<main>
+  <div id="skeletonLoader" class="skeleton-grid"></div>
+  <div id="cardsGrid"></div>
+  <div id="pagination" class="pagination"></div>
+</main>
+
+<!-- ── FOOTER ── -->
+<footer>
+  <div class="footer-inner">
+    <div class="footer-text">DataLens &mdash; Powered by <a href="https://tvmaze.com" target="_blank" rel="noopener">TVMaze API</a></div>
+    <div class="footer-text">Built with vanilla JS &bull; No frameworks</div>
+  </div>
+</footer>
+
+</div><!-- .app -->
+
+<!-- ── MODAL ── -->
+<div id="modalBackdrop" class="modal-backdrop" onclick="handleBackdropClick(event)">
+  <div class="modal" id="modal">
+    <button class="modal-close" onclick="closeModal()">✕</button>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<!-- ── TOASTS ── -->
+<div id="toastContainer"></div>
+
+<script>
+/* ═══════════════════════════════════════════════
+   STATE
+══════════════════════════════════════════════ */
+const state = {
+  data: [],
+  filtered: [],
+  loading: false,
+  error: null,
+  currentPage: 1,
+  perPage: 12,
+  view: 'grid',
+  favsOnly: false,
+  favorites: JSON.parse(localStorage.getItem('datalens_favs') || '{}'),
+};
+
+/* ═══════════════════════════════════════════════
+   API
+══════════════════════════════════════════════ */
+const API_URL = 'https://api.tvmaze.com/shows?page=0';
+const API_URL2 = 'https://api.tvmaze.com/shows?page=1';
+
+async function fetchShows() {
+  state.loading = true;
+  state.error = null;
+  showSkeleton(true);
+  try {
+    const [r1, r2] = await Promise.all([
+      fetch(API_URL),
+      fetch(API_URL2)
+    ]);
+    if (!r1.ok || !r2.ok) throw new Error(`API error: ${r1.status}`);
+    const [d1, d2] = await Promise.all([r1.json(), r2.json()]);
+    state.data = [...d1, ...d2];
+    state.error = null;
+    buildFilters();
+    applyFilters();
+    updateTotalChip();
+    showSkeleton(false);
+  } catch (err) {
+    state.error = err.message || 'Unknown error';
+    showSkeleton(false);
+    renderError();
+  } finally {
+    state.loading = false;
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   FILTERS + SORT
+══════════════════════════════════════════════ */
+function buildFilters() {
+  const genres = new Set();
+  const networks = new Set();
+  state.data.forEach(s => {
+    (s.genres || []).forEach(g => genres.add(g));
+    const net = s.network?.name || s.webChannel?.name;
+    if (net) networks.add(net);
+  });
+
+  const gSel = document.getElementById('genreFilter');
+  const nSel = document.getElementById('networkFilter');
+  [...genres].sort().forEach(g => {
+    const o = document.createElement('option'); o.value = g; o.textContent = g; gSel.appendChild(o);
+  });
+  [...networks].sort().forEach(n => {
+    const o = document.createElement('option'); o.value = n; o.textContent = n; nSel.appendChild(o);
+  });
+}
+
+function applyFilters() {
+  const search = document.getElementById('searchInput').value.trim().toLowerCase();
+  const genre = document.getElementById('genreFilter').value;
+  const network = document.getElementById('networkFilter').value;
+  const sort = document.getElementById('sortSelect').value;
+
+  let result = [...state.data];
+
+  if (state.favsOnly) {
+    result = result.filter(s => state.favorites[s.id]);
+  }
+  if (genre) {
+    result = result.filter(s => (s.genres || []).includes(genre));
+  }
+  if (network) {
+    result = result.filter(s => {
+      const n = s.network?.name || s.webChannel?.name;
+      return n === network;
+    });
+  }
+  if (search) {
+    result = result.filter(s => {
+      const name = (s.name || '').toLowerCase();
+      const genres = (s.genres || []).join(' ').toLowerCase();
+      const net = ((s.network?.name || s.webChannel?.name) || '').toLowerCase();
+      return name.includes(search) || genres.includes(search) || net.includes(search);
+    });
+  }
+
+  // Sort
+  if (sort === 'az') result.sort((a,b) => a.name.localeCompare(b.name));
+  else if (sort === 'za') result.sort((a,b) => b.name.localeCompare(a.name));
+  else if (sort === 'rating-desc') result.sort((a,b) => (b.rating?.average || 0) - (a.rating?.average || 0));
+  else if (sort === 'rating-asc') result.sort((a,b) => (a.rating?.average || 0) - (b.rating?.average || 0));
+  else if (sort === 'year-desc') result.sort((a,b) => (b.premiered||'').localeCompare(a.premiered||''));
+  else if (sort === 'year-asc') result.sort((a,b) => (a.premiered||'').localeCompare(b.premiered||''));
+
+  state.filtered = result;
+  state.currentPage = 1;
+  renderCards();
+  updateActiveChips(search, genre, network, sort);
+}
+
+/* ═══════════════════════════════════════════════
+   RENDER
+══════════════════════════════════════════════ */
+function renderCards() {
+  const grid = document.getElementById('cardsGrid');
+  const { filtered, currentPage, perPage } = state;
+
+  if (!filtered.length) {
+    grid.innerHTML = state.error
+      ? ''
+      : `<div class="empty-state">
+          <div class="empty-icon">◎</div>
+          <div class="empty-title">No Results</div>
+          <div class="empty-sub">Try adjusting your filters or search query.</div>
+        </div>`;
+    document.getElementById('pagination').innerHTML = '';
+    return;
+  }
+
+  const start = (currentPage - 1) * perPage;
+  const page  = filtered.slice(start, start + perPage);
+
+  grid.innerHTML = page.map((s, i) => cardHTML(s, i)).join('');
+  if (state.view === 'list') {
+    grid.classList.add('list-view');
+    grid.querySelectorAll('.card').forEach(c => c.classList.add('list-view'));
+  } else {
+    grid.classList.remove('list-view');
+  }
+  renderPagination();
+}
+
+function cardHTML(s, i) {
+  const img = s.image?.medium || s.image?.original || '';
+  const rating = s.rating?.average;
+  const network = s.network?.name || s.webChannel?.name || '';
+  const genres = (s.genres || []).slice(0, 2);
+  const status = s.status || 'Unknown';
+  const isFav = !!state.favorites[s.id];
+  const summary = stripHTML(s.summary || '');
+  const year = s.premiered ? s.premiered.slice(0, 4) : '—';
+
+  const statusClass = status === 'Running' ? 'running' : status === 'Ended' ? 'ended' : 'other';
+
+  return `<div class="card" onclick="openModal(${s.id})">
+    <div class="card-img-wrap">
+      ${img
+        ? `<img src="${img}" alt="${esc(s.name)}" loading="lazy" onerror="this.parentElement.innerHTML='<div class=&quot;card-no-img&quot;>${esc(s.name.slice(0,3).toUpperCase())}</div>'">`
+        : `<div class="card-no-img">${esc(s.name.slice(0,3).toUpperCase())}</div>`
+      }
+      ${rating ? `<div class="card-rating-badge">★ ${rating}</div>` : ''}
+      <div class="card-genre-tag">
+        ${genres.map(g => `<span class="genre-pill">${esc(g)}</span>`).join('')}
+      </div>
+      <button class="fav-btn ${isFav ? 'active' : ''}" onclick="toggleFav(event, ${s.id})" title="${isFav ? 'Remove from favorites' : 'Add to favorites'}">♥</button>
+    </div>
+    <div class="card-body">
+      ${network ? `<div class="card-network">${esc(network)}</div>` : ''}
+      <div class="card-title">${esc(s.name)}</div>
+      <div class="card-meta">
+        <span class="meta-item">📅 ${year}</span>
+        ${s.runtime ? `<span class="meta-item">⏱ ${s.runtime}m</span>` : ''}
+        ${s.language ? `<span class="meta-item">🌐 ${esc(s.language)}</span>` : ''}
+      </div>
+      ${summary ? `<div class="card-summary">${esc(summary)}</div>` : ''}
+      <div class="card-footer">
+        <span class="status-text">
+          <span class="status-dot ${statusClass}"></span>${status}
+        </span>
+        <button class="view-more-btn" onclick="openModal(${s.id});event.stopPropagation()">Details →</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderError() {
+  const grid = document.getElementById('cardsGrid');
+  grid.innerHTML = `<div class="error-state">
+    <div class="empty-icon">⚠</div>
+    <div class="empty-title">Fetch Failed</div>
+    <div class="empty-sub">${esc(state.error)}</div>
+    <button class="retry-btn" onclick="fetchShows()">↺ Retry</button>
+  </div>`;
+  document.getElementById('pagination').innerHTML = '';
+}
+
+/* ═══════════════════════════════════════════════
+   PAGINATION
+══════════════════════════════════════════════ */
+function renderPagination() {
+  const total = state.filtered.length;
+  const pages = Math.ceil(total / state.perPage);
+  const cur = state.currentPage;
+  const wrap = document.getElementById('pagination');
+
+  if (pages <= 1) { wrap.innerHTML = ''; return; }
+
+  let html = `<button class="page-btn" onclick="goPage(${cur - 1})" ${cur === 1 ? 'disabled' : ''}>‹ Prev</button>`;
+
+  const range = paginationRange(cur, pages);
+  let last = 0;
+  range.forEach(p => {
+    if (p - last > 1) html += `<span class="page-ellipsis">…</span>`;
+    html += `<button class="page-btn ${p === cur ? 'active' : ''}" onclick="goPage(${p})">${p}</button>`;
+    last = p;
+  });
+
+  html += `<button class="page-btn" onclick="goPage(${cur + 1})" ${cur === pages ? 'disabled' : ''}>Next ›</button>`;
+  wrap.innerHTML = html;
+}
+
+function paginationRange(current, total) {
+  const delta = 2;
+  const range = [];
+  for (let i = Math.max(2, current - delta); i <= Math.min(total - 1, current + delta); i++) range.push(i);
+  if (current - delta > 2) range.unshift('...');
+  if (current + delta < total - 1) range.push('...');
+  range.unshift(1);
+  if (total > 1) range.push(total);
+  return range.filter(n => typeof n === 'number');
+}
+
+function goPage(p) {
+  const pages = Math.ceil(state.filtered.length / state.perPage);
+  if (p < 1 || p > pages) return;
+  state.currentPage = p;
+  renderCards();
+  window.scrollTo({ top: document.querySelector('.controls-bar').offsetTop - 70, behavior: 'smooth' });
+}
+
+/* ═══════════════════════════════════════════════
+   MODAL
+══════════════════════════════════════════════ */
+function openModal(id) {
+  const show = state.data.find(s => s.id === id);
+  if (!show) return;
+  const img = show.image?.original || show.image?.medium || '';
+  const rating = show.rating?.average;
+  const network = show.network?.name || show.webChannel?.name || '';
+  const isFav = !!state.favorites[id];
+  const summary = show.summary || '';
+
+  document.getElementById('modalContent').innerHTML = `
+    <div class="modal-hero">
+      ${img
+        ? `<img src="${img}" alt="${esc(show.name)}" loading="lazy">`
+        : `<div class="modal-hero-no-img">${esc((show.name||'').slice(0,3).toUpperCase())}</div>`
+      }
+      <div class="modal-hero-overlay"></div>
+    </div>
+    <div class="modal-body">
+      ${network ? `<div class="modal-network">${esc(network)}</div>` : ''}
+      <div class="modal-title">${esc(show.name)}</div>
+      <div class="modal-tags">
+        ${(show.genres||[]).map(g => `<span class="modal-tag">${esc(g)}</span>`).join('')}
+        ${show.type ? `<span class="modal-tag">${esc(show.type)}</span>` : ''}
+        ${show.language ? `<span class="modal-tag">🌐 ${esc(show.language)}</span>` : ''}
+      </div>
+      <div class="modal-stats">
+        ${rating ? `<div class="stat-card"><div class="stat-card-label">Rating</div><div class="stat-card-value accent">★ ${rating}/10</div></div>` : ''}
+        ${show.status ? `<div class="stat-card"><div class="stat-card-label">Status</div><div class="stat-card-value">${esc(show.status)}</div></div>` : ''}
+        ${show.premiered ? `<div class="stat-card"><div class="stat-card-label">Premiered</div><div class="stat-card-value">${esc(show.premiered)}</div></div>` : ''}
+        ${show.runtime ? `<div class="stat-card"><div class="stat-card-label">Runtime</div><div class="stat-card-value">${show.runtime} min</div></div>` : ''}
+        ${show.averageRuntime ? '' : ''}
+        ${show.schedule?.time ? `<div class="stat-card"><div class="stat-card-label">Schedule</div><div class="stat-card-value">${esc(show.schedule.days?.join(', ') || '')} ${esc(show.schedule.time)}</div></div>` : ''}
+      </div>
+      ${summary ? `<div class="modal-desc">${summary}</div>` : ''}
+      <div class="modal-footer">
+        <button class="modal-fav-btn ${isFav ? 'active' : ''}" id="modalFavBtn" onclick="toggleFav(null, ${id}); updateModalFavBtn(${id})">
+          ${isFav ? '♥ In Favorites' : '♡ Add to Favorites'}
+        </button>
+        ${show.url ? `<a class="modal-ext-btn" href="${show.url}" target="_blank" rel="noopener">View on TVMaze ↗</a>` : ''}
+      </div>
+    </div>`;
+
+  document.getElementById('modalBackdrop').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function updateModalFavBtn(id) {
+  const isFav = !!state.favorites[id];
+  const btn = document.getElementById('modalFavBtn');
+  if (!btn) return;
+  btn.textContent = isFav ? '♥ In Favorites' : '♡ Add to Favorites';
+  btn.className = `modal-fav-btn ${isFav ? 'active' : ''}`;
+}
+
+function closeModal() {
+  document.getElementById('modalBackdrop').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+function handleBackdropClick(e) {
+  if (e.target === document.getElementById('modalBackdrop')) closeModal();
+}
+
+/* ═══════════════════════════════════════════════
+   FAVORITES
+══════════════════════════════════════════════ */
+function toggleFav(e, id) {
+  if (e) e.stopPropagation();
+  if (state.favorites[id]) {
+    delete state.favorites[id];
+    showToast('Removed from favorites', '♡', 'fav');
+  } else {
+    const show = state.data.find(s => s.id === id);
+    state.favorites[id] = show?.name || id;
+    showToast(`Added: ${show?.name || id}`, '♥', 'fav');
+  }
+  localStorage.setItem('datalens_favs', JSON.stringify(state.favorites));
+  updateFavCount();
+  // Update card fav btn if visible
+  const btn = document.querySelector(`.card [onclick*="toggleFav(event, ${id})"]`);
+  if (btn) btn.className = `fav-btn ${state.favorites[id] ? 'active' : ''}`;
+  if (state.favsOnly) applyFilters();
+}
+
+function toggleFavsOnly() {
+  state.favsOnly = !state.favsOnly;
+  const btn = document.getElementById('favToggleBtn');
+  const hbtn = document.getElementById('favHeaderBtn');
+  btn.classList.toggle('active', state.favsOnly);
+  hbtn.classList.toggle('active', state.favsOnly);
+  applyFilters();
+}
+
+function updateFavCount() {
+  const count = Object.keys(state.favorites).length;
+  const el = document.getElementById('favCount');
+  el.textContent = count;
+  el.style.display = count > 0 ? 'inline' : 'none';
+}
+
+/* ═══════════════════════════════════════════════
+   ACTIVE CHIPS
+══════════════════════════════════════════════ */
+function updateActiveChips(search, genre, network, sort) {
+  const wrap = document.getElementById('activeChips');
+  let html = '';
+  if (genre) html += chip(`Genre: ${genre}`, `clearFilter('genre')`);
+  if (network) html += chip(`Net: ${network}`, `clearFilter('network')`);
+  if (search) html += chip(`"${search}"`, `clearFilter('search')`);
+  if (sort && sort !== 'default') html += chip(`Sort: ${sort}`, `clearFilter('sort')`);
+  wrap.innerHTML = html;
+}
+
+function chip(label, onclick) {
+  return `<span class="chip" onclick="${onclick}"><span>${label}</span><span class="chip-x">✕</span></span>`;
+}
+
+function clearFilter(type) {
+  if (type === 'genre') document.getElementById('genreFilter').value = '';
+  else if (type === 'network') document.getElementById('networkFilter').value = '';
+  else if (type === 'search') { document.getElementById('searchInput').value = ''; }
+  else if (type === 'sort') document.getElementById('sortSelect').value = 'default';
+  applyFilters();
+}
+
+/* ═══════════════════════════════════════════════
+   VIEW
+══════════════════════════════════════════════ */
+function setView(v) {
+  state.view = v;
+  document.getElementById('gridBtn').classList.toggle('active', v === 'grid');
+  document.getElementById('listBtn').classList.toggle('active', v === 'list');
+  renderCards();
+}
+
+/* ═══════════════════════════════════════════════
+   THEME
+══════════════════════════════════════════════ */
+function toggleTheme() {
+  const html = document.documentElement;
+  const current = html.getAttribute('data-theme');
+  html.setAttribute('data-theme', current === 'dark' ? 'light' : 'dark');
+  localStorage.setItem('datalens_theme', html.getAttribute('data-theme'));
+  showToast(current === 'dark' ? 'Light mode on' : 'Dark mode on', '◑', 'success');
+}
+
+/* ═══════════════════════════════════════════════
+   SKELETON
+══════════════════════════════════════════════ */
+function showSkeleton(show) {
+  const sk = document.getElementById('skeletonLoader');
+  const grid = document.getElementById('cardsGrid');
+  if (show) {
+    grid.innerHTML = '';
+    sk.innerHTML = Array(12).fill(0).map(() => `
+      <div class="skeleton-card">
+        <div class="skel skel-img"></div>
+        <div class="skel-content">
+          <div class="skel skel-line w-60"></div>
+          <div class="skel skel-line w-80"></div>
+          <div class="skel skel-line w-40"></div>
+        </div>
+      </div>`).join('');
+    sk.style.display = 'grid';
+  } else {
+    sk.style.display = 'none';
+    sk.innerHTML = '';
+  }
+}
+
+/* ═══════════════════════════════════════════════
+   TOAST
+══════════════════════════════════════════════ */
+function showToast(msg, icon = '✓', type = 'success') {
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `<span>${icon}</span><span>${msg}</span>`;
+  container.appendChild(toast);
+  setTimeout(() => {
+    toast.style.animation = 'toastOut 0.3s ease forwards';
+    setTimeout(() => toast.remove(), 300);
+  }, 2400);
+}
+
+/* ═══════════════════════════════════════════════
+   UTIL
+══════════════════════════════════════════════ */
+function esc(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function stripHTML(str) {
+  return str.replace(/<[^>]+>/g, '');
+}
+
+function updateTotalChip() {
+  const el = document.getElementById('totalChip');
+  el.innerHTML = `<span>${state.data.length}</span> shows`;
+}
+
+/* ═══════════════════════════════════════════════
+   DEBOUNCE
+══════════════════════════════════════════════ */
+function debounce(fn, delay) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), delay); };
+}
+
+/* ═══════════════════════════════════════════════
+   KEYBOARD
+══════════════════════════════════════════════ */
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeModal();
+});
+
+/* ═══════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════ */
+(function init() {
+  // Restore theme
+  const savedTheme = localStorage.getItem('datalens_theme');
+  if (savedTheme) document.documentElement.setAttribute('data-theme', savedTheme);
+
+  // Debounced search
+  document.getElementById('searchInput').addEventListener('input',
+    debounce(() => applyFilters(), 300)
+  );
+
+  updateFavCount();
+  fetchShows();
+})();
+</script>
+</body>
+</html>
